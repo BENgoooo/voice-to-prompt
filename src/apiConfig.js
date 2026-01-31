@@ -1,7 +1,27 @@
 /**
  * 免费AI API配置
- * 包含各种免费API的额度、刷新周期等信息
+ * API Key 从 localStorage 读取，如果未设置则使用默认值（需要用户自行替换）
  */
+
+// 从 localStorage 获取 API Key，如果没有则返回空字符串
+const getApiKey = (providerId) => {
+  const key = localStorage.getItem(`api_key_${providerId}`);
+  return key || '';
+};
+
+// 设置 API Key 到 localStorage
+export const setApiKey = (providerId, apiKey) => {
+  localStorage.setItem(`api_key_${providerId}`, apiKey);
+};
+
+// 获取 API Key（优先从 localStorage，如果没有则提示用户）
+export const getValidApiKey = (providerId) => {
+  const key = getApiKey(providerId);
+  if (!key) {
+    throw new Error(`请先设置 ${providerId} 的 API Key`);
+  }
+  return key;
+};
 
 export const API_PROVIDERS = {
   openrouter: {
@@ -36,7 +56,7 @@ export const API_PROVIDERS = {
       },
     ],
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    apiKey: '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',
+    getApiKey: () => getValidApiKey('openrouter'),
     headers: (apiKey) => ({
       'Authorization': `Bearer ${apiKey}`,
       'HTTP-Referer': window.location.href,
@@ -50,6 +70,7 @@ export const API_PROVIDERS = {
       max_tokens: 2000,
     }),
     parseResponse: (data) => data.choices?.[0]?.message?.content || '',
+    helpUrl: 'https://openrouter.ai/keys',
   },
 
   siliconflow: {
@@ -58,7 +79,7 @@ export const API_PROVIDERS = {
     description: '国内友好的大模型API平台',
     website: 'https://cloud.siliconflow.cn',
     freeTier: {
-      totalQuota: 20000000, // 2000万 tokens
+      totalQuota: 20000000,
       refreshCycle: 'one-time',
       refreshTime: null,
       description: '新用户2000万Token（长期有效）',
@@ -79,16 +100,9 @@ export const API_PROVIDERS = {
         maxTokens: 4000,
         freeForever: true,
       },
-      {
-        id: 'deepseek-ai/DeepSeek-V2.5',
-        name: 'DeepSeek V2.5',
-        description: 'DeepSeek对话模型（消耗额度）',
-        maxTokens: 4000,
-        freeForever: false,
-      },
     ],
     endpoint: 'https://api.siliconflow.cn/v1/chat/completions',
-    apiKey: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx', // 用户需要填入自己的key
+    getApiKey: () => getValidApiKey('siliconflow'),
     headers: (apiKey) => ({
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -100,6 +114,7 @@ export const API_PROVIDERS = {
       max_tokens: 2000,
     }),
     parseResponse: (data) => data.choices?.[0]?.message?.content || '',
+    helpUrl: 'https://cloud.siliconflow.cn/account/ak',
   },
 
   gemini: {
@@ -116,19 +131,18 @@ export const API_PROVIDERS = {
     },
     models: [
       {
-        id: 'gemini-2.5-flash-preview-05-20',
-        name: 'Gemini 2.5 Flash',
+        id: 'gemini-2.0-flash-exp',
+        name: 'Gemini 2.0 Flash',
         description: 'Google轻量级模型',
         maxTokens: 4000,
       },
     ],
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
-    apiKey: 'AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    getApiKey: () => getValidApiKey('gemini'),
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     formatBody: (model, messages) => {
-      // Gemini使用不同的消息格式
       const systemMsg = messages.find(m => m.role === 'system')?.content || '';
       const userMsg = messages.find(m => m.role === 'user')?.content || '';
       return {
@@ -146,46 +160,7 @@ export const API_PROVIDERS = {
     parseResponse: (data) => data.candidates?.[0]?.content?.parts?.[0]?.text || '',
     formatUrl: (endpoint, model, apiKey) =>
       `${endpoint}/${model}:generateContent?key=${apiKey}`,
-  },
-
-  groq: {
-    id: 'groq',
-    name: 'Groq',
-    description: '极速推理API平台',
-    website: 'https://groq.com',
-    freeTier: {
-      dailyQuota: 14400,
-      refreshCycle: 'daily',
-      refreshTime: '00:00 UTC',
-      description: '每日14,400次请求',
-    },
-    models: [
-      {
-        id: 'llama-3.3-70b-versatile',
-        name: 'Llama 3.3 70B',
-        description: 'Meta最强开源模型',
-        maxTokens: 4000,
-      },
-      {
-        id: 'mixtral-8x7b-32768',
-        name: 'Mixtral 8x7B',
-        description: 'Mistral开源MoE模型',
-        maxTokens: 4000,
-      },
-    ],
-    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-    apiKey: 'gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    headers: (apiKey) => ({
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-    formatBody: (model, messages) => ({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-    parseResponse: (data) => data.choices?.[0]?.message?.content || '',
+    helpUrl: 'https://aistudio.google.com/app/apikey',
   },
 };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Wand2, Copy, CheckCircle2, Activity, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, Wand2, Copy, CheckCircle2, Activity, AlertTriangle, Settings } from 'lucide-react';
 import ModelSelector from './components/ModelSelector';
+import ApiKeySettings from './components/ApiKeySettings';
 import { API_PROVIDERS, SYSTEM_PROMPT, DEFAULT_MODEL } from './apiConfig';
 import { checkQuota, incrementUsage, getNextRefreshTime, formatTime } from './utils/quotaManager';
 
@@ -51,6 +52,9 @@ async function callAPI(providerId, modelId, rawText) {
     throw new Error('未知的API提供商');
   }
 
+  // Get API Key (will throw if not set)
+  const apiKey = provider.getApiKey();
+
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: `请将以下语音转录文本优化为专业的AI Prompt：\n\n${rawText.trim()}` }
@@ -58,7 +62,7 @@ async function callAPI(providerId, modelId, rawText) {
 
   // Special handling for Gemini (different API format)
   if (providerId === 'gemini') {
-    const url = provider.formatUrl(provider.endpoint, modelId, provider.apiKey);
+    const url = provider.formatUrl(provider.endpoint, modelId, apiKey);
     const body = provider.formatBody(modelId, messages);
 
     const response = await fetch(url, {
@@ -79,7 +83,7 @@ async function callAPI(providerId, modelId, rawText) {
   // Standard OpenAI-compatible format
   const response = await fetch(provider.endpoint, {
     method: 'POST',
-    headers: provider.headers(provider.apiKey),
+    headers: provider.headers(apiKey),
     body: JSON.stringify(provider.formatBody(modelId, messages)),
   });
 
@@ -103,6 +107,12 @@ function App() {
   const [isSupported, setIsSupported] = useState(true);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [quotaAlert, setQuotaAlert] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Check if API Key is set for current provider
+  const isApiKeySet = (providerId) => {
+    return !!localStorage.getItem(`api_key_${providerId}`);
+  };
 
   // Refs
   const recognitionRef = useRef(null);
@@ -247,6 +257,10 @@ function App() {
       incrementUsage(provider, 1);
     } catch (err) {
       console.error('Optimization error:', err);
+      // Check if error is about API Key
+      if (err.message?.includes('请先设置') || err.message?.includes('API Key')) {
+        setShowSettings(true);
+      }
       setError(`优化失败: ${err.message}`);
     } finally {
       setStatus(STATUS.IDLE);
@@ -334,6 +348,9 @@ function App() {
         />
       )}
 
+      {/* API Key Settings Modal */}
+      <ApiKeySettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
       {/* Header */}
       <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
@@ -345,6 +362,19 @@ function App() {
 
         <div className="flex items-center gap-4">
           <StatusIndicator />
+
+          {/* Settings Button */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className={`p-2 rounded-lg transition-colors ${
+              !isApiKeySet(selectedModel.provider)
+                ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+            title="设置 API Key"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
 
           {/* Model Selector */}
           <div className="h-6 w-px bg-slate-700 mx-1" />
